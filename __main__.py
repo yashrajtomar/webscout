@@ -1,39 +1,50 @@
-#!/usr/bin/env python3
 import os
 import importlib
-import requests
-from core.tool_runner import ToolRunner
-from core.output_presenter import OutputPresenter
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 from rich.prompt import Prompt
+from rich.table import Table
 
 console = Console()
 
 def list_modules():
-    current_dir = os.path.dirname(os.path.abspath(__file__))  # Get current dir of __main__.py
-    module_dir = os.path.join(current_dir, "modules")         # Join with modules
+    module_dir = os.path.join(os.path.dirname(__file__), "modules")
     return [f[:-3] for f in os.listdir(module_dir) if f.endswith(".py") and not f.startswith("__")]
+
+def show_module_table(modules):
+    table = Table(title="📦 Available Modules", show_lines=True, border_style="blue")
+    table.add_column("No.", style="cyan", justify="center")
+    table.add_column("Module Name", style="bold magenta")
+
+    for idx, module in enumerate(modules, 1):
+        table.add_row(str(idx), module)
+
+    console.print(table)
+
+def select_modules(modules):
+    show_module_table(modules)
+    choices = Prompt.ask(
+        "[bold cyan]Enter module number(s) to run (e.g. 1 or 1,2,3)[/bold cyan]"
+    )
+    selected = [modules[int(i.strip()) - 1] for i in choices.split(",") if i.strip().isdigit()]
+    return selected
 
 def main():
     console.print(Panel("[bold cyan]Welcome to WebScout CLI[/bold cyan]", border_style="blue"))
-
     modules = list_modules()
-    for i, mod in enumerate(modules):
-        console.print(f"[bold green]{i + 1}[/bold green]. {mod}")
+    selected_modules = select_modules(modules)
 
-    choice = int(Prompt.ask("[bold yellow]Choose a tool to run[/bold yellow]")) - 1
-    selected_module = modules[choice]
+    target = Prompt.ask("[bold green]Enter the target (IP/domain)[/bold green]")
 
-    target = Prompt.ask("[bold yellow]Enter target (IP or domain)[/bold yellow]")
-    switches_input = Prompt.ask("[bold yellow]Enter switches (e.g., -sV -T4)[/bold yellow]")
-    switches = switches_input.split()
+    for module_name in selected_modules:
+        mod = importlib.import_module(f"modules.{module_name}")
+        switches = Prompt.ask(f"[bold green]Enter switches for [cyan]{module_name}[/cyan] (or leave blank)[/bold green]").split()
 
-    tool_module = importlib.import_module(f"modules.{selected_module}")
-    output = tool_module.run(target, switches)
-    tool_module.display(output)
+        try:
+            output = mod.run(target, switches)
+            mod.display(output)
+        except Exception as e:
+            console.print(f"[bold red]Error running {module_name}:[/bold red] {e}")
 
 if __name__ == "__main__":
-    list_modules()
     main()
